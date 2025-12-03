@@ -1,0 +1,98 @@
+#include <WiFi.h>
+#include "AdafruitIO_WiFi.h"
+#include <Adafruit_seesaw.h>
+
+// -------- Adafruit IO ----------
+#define IO_USERNAME "kaname"
+#define IO_KEY      ""
+
+// -------- WiFi ----------
+#define WIFI_SSID "namesandayo"
+#define WIFI_PASS "KANAMEN98tn"
+
+// -------- Seesaw ----------
+Adafruit_seesaw ss;
+
+// -------- Adafruit IO Client ----------
+AdafruitIO_WiFi io(IO_USERNAME, IO_KEY, WIFI_SSID, WIFI_PASS);
+
+// Feed
+AdafruitIO_Feed *moistureFeed = io.feed("doraemon");
+AdafruitIO_Feed *lightFeed    = io.feed("nobita");
+
+// Photoresistor pin
+const int PHOTO_PIN = A2;
+
+// -------- RGB LED pins (3 LEDs) ----------
+// int LED_R[3] = {13,27,15};
+
+// // LEDC channels
+// int CH_R[3] = {0, 3, 6};
+// int CH_G[3] = {1, 4, 7};
+// int CH_B[3] = {2, 5, 8};
+
+int red= 13;
+int blue= 27;
+int green= 15;
+
+// ---------- Set all 3 LEDs to the same color ----------
+void setColor(int r, int g, int b) {
+analogWrite(red,r);
+analogWrite(blue,b);
+analogWrite(green,g);
+
+}
+
+void setup() {
+  Serial.begin(115200);
+
+ pinMode(red,OUTPUT);
+ pinMode(blue,OUTPUT);
+ pinMode(green,OUTPUT);
+
+  
+  // Seesaw soil sensor
+  if (!ss.begin(0x36)) {
+    Serial.println("Seesaw not found!");
+    while (1) delay(1000);
+  }
+
+  // Adafruit IO 接続
+  io.connect();
+  Serial.println("Connecting to Adafruit IO...");
+  while(io.status() < AIO_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\nConnected to Adafruit IO!");
+}
+
+void loop() {
+  io.run(); // MQTTハンドル
+
+  // センサー値読み取り
+  int moisture = ss.touchRead(0);
+  int lightVal = analogRead(PHOTO_PIN);
+
+  Serial.print("Moisture: "); Serial.println(moisture);
+  Serial.print("Light: "); Serial.println(lightVal);
+
+  // Adafruit IO に送信
+  moistureFeed->save(moisture);
+  lightFeed->save(lightVal);
+
+  // ---------- LED 条件制御 ----------
+
+
+  if (moisture <= 600 && lightVal <= 620) {
+    setColor(255, 255, 3);   // orange：乾燥＆明るい
+  } else if (moisture > 600 && lightVal <= 620) {
+    setColor(0, 0, 0); // green：湿ってて明るい
+  } else if (moisture <= 600 && lightVal > 620) {
+    setColor(255, 106, 0);  // dark yellow：乾燥だけどくらい
+  } else if(moisture>600 && lightVal>620) {
+    setColor(123, 0, 255); // purple：湿ってて暗い
+  }
+
+  delay(5000); // 5秒ごとに更新
+}
